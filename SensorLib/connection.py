@@ -2,7 +2,6 @@ import http_client
 from utime import time, localtime
 import ubinascii
 from sensor import Sensor
-import json
 
 class Connection:
     """Base connection class"""
@@ -69,18 +68,29 @@ class WiFi(Connection):
         
         self._getToken(debug)
         #POST message definition pk  !!
+        #check if exists ??  Doesn't fail if already there, so ....
         postUrl = "{}/cc-in/bymessagedefinitionpk".format(self.connectToURLforCC_In)
         data = {"owner":self.userName,  "name":m2mSensor.getStreamId()}
         auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
+        if debug: 
+            print('Sending endpoint : ', postUrl)
+            print('Payload : ',  data)
         resp = http_client.post(postUrl, headers=auth_header, json=data, debug = debug)
         resp.raise_for_status()
         if debug: print (resp.getStatus())
         resp.close()
         print ("### PK : created ###")
         #PUT the definition
+        #check if exists? FAILS if there, but perhaps CC not yet defined -> do check !! or handle exception en continue!
         putUrl = "{}/messagedefinition".format(self.connectToURLforCC_In)
-        data = {"owner":self.userName,  "name":m2mSensor.getStreamId(), "json_schema" : json.dumps(m2mSensor.getStreamDefinition())}
+        # BINARY (-> json_schema : null) / JSON
+        data = m2mSensor.getStreamDefinitionJSON()
+        data["owner"] = self.userName
+        #data = {"owner":self.userName,  "name":m2mSensor.getStreamId(), "payload_type":"JSON", "json_schema" : json.dumps(m2mSensor.getStreamDefinition())}
         auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
+        if debug: 
+            print('Sending endpoint : ', putUrl)
+            print('Payload : ',  data)
         resp = http_client.put(putUrl, headers=auth_header, json=data, debug = debug)
         resp.raise_for_status()
         if debug: print (resp.getStatus())
@@ -88,8 +98,15 @@ class WiFi(Connection):
         print ("### MD : created ###")
         #PUT the cloudchannel
         putUrl = "{}/cc-in/".format(self.connectToURLforCC_In)
-        data = {"owner":self.userName,"payload_type":"JSON","latest_message_definition":{"name":m2mSensor.getStreamId(),"owner":self.userName},"end_point_types":["HTTP"],"selected_assets":["SEAAS"],"additional_props_for_assets":{"SEAAS":{"deviceId":m2mSensor.getDeviceId()}},"user_defined_urls":{"HTTP":[m2mSensor.getStreamId()]}}
+        # BINARY / JSON
+        data = m2mSensor.getCloudChannelInDefinitionJSON()
+        data["owner"] = self.userName
+        data["latest_message_definition"]["owner"] = self.userName
+        #data = {"owner":self.userName,"payload_type":"JSON","latest_message_definition":{"name":m2mSensor.getStreamId(),"owner":self.userName},"end_point_types":["HTTP"],"selected_assets":["SEAAS"],"additional_props_for_assets":{"SEAAS":{"deviceId":m2mSensor.getDeviceId()}},"user_defined_urls":{"HTTP":[m2mSensor.getStreamId()]}}
         auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
+        if debug: 
+            print('Sending endpoint : ', putUrl)
+            print('Payload : ',  data)
         resp = http_client.put(putUrl, headers=auth_header, json=data, debug = debug)
         resp.raise_for_status()
         if debug: print (resp.getStatus())
@@ -126,7 +143,15 @@ class WiFi(Connection):
             print('Payload : ',  data)
                 
         auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
+        
+        #TODO : investigate why binary path causes 500 error, send as JSON seems to work ....
         resp = http_client.post(postUrl, headers=auth_header, json=data, debug = debug)
+
+#        if enCoSensor.sendAsBinary() != True:
+#            resp = http_client.post(postUrl, headers=auth_header, json=data, debug = debug)
+#        else:
+#            resp = http_client.post(postUrl, headers=auth_header, binary=data, debug = debug)
+            
         resp.raise_for_status()
         if debug: print (resp.getStatus())
         resp.close()
@@ -151,7 +176,6 @@ class WiFi(Connection):
         resp = http_client.get(getUrl, headers=auth_header, debug = debug)
         if debug: print (resp.content)
         resp.close()
-        #print(resp.getStatus())
         return resp.getStatus()[0] == 200
       
     def sensorHasMessageDefinition(self, sensor, debug = False):
@@ -159,10 +183,12 @@ class WiFi(Connection):
             raise OSError('\'sensor\' parameter undefined or wrong type!')
             
         if sensor.hasCCINdefinition == False:
-            print("performg STREAM check")
+            if debug: 
+                print("performg STREAM check")
             sensor.hasCCINdefinition = self.checkIfMessageDefinitionExists(sensor.getStreamId(), debug)
         else:
-            print("stream was checked before !!")
+            if debug: 
+                print("stream was checked before !!")
             
         return sensor.hasCCINdefinition
 

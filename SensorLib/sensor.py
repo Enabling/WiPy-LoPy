@@ -1,7 +1,8 @@
 import utime
+from json import dumps
 
 class Sensor(object):
-    hasCCINdefinition = False
+    hasCCINdefinition = False #If you're sure it exists, best to overrride in implementing class to save http calls
 
     def __init__( self, streamId):
             
@@ -38,8 +39,30 @@ class Sensor(object):
     def getStreamId( self ):
         return self.containerId
         
-    def getStreamDefinition():
+    def getStreamDefinition(self):
         return None
+        
+    def sendAsBinary(self):
+        """
+        When sending over WiFi, whether to send it as JSON or binary data
+        """
+        return False
+
+    def getStreamDefinitionJSON(self):
+        result = {"owner":"",  "name":self.getStreamId(), "payload_type":"JSON", "json_schema" : None}
+        if self.sendAsBinary() != True:
+            result["json_schema"] = dumps(self.getStreamDefinition())
+        else:
+            result["payload_type"] = "BINARY"
+            
+        return result
+    
+    def getCloudChannelInDefinitionJSON(self):
+        result = {"owner":"","payload_type":"JSON","latest_message_definition":{"name":self.getStreamId(),"owner":""},"end_point_types":["HTTP"],"selected_assets":["SEAAS","CC_OUT"],"additional_props_for_assets":{"SEAAS":{"deviceId":self.getDeviceId()},"CC_OUT":{}},"user_defined_urls":{"HTTP":[self.getStreamId()]}}
+        if self.sendAsBinary() == True:
+            result["payload_type"] = "BINARY"
+
+        return result
 
     def setDeviceId( self,  deviceId ):
         self.macAddress = deviceId

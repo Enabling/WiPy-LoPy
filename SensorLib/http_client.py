@@ -10,7 +10,7 @@ except ImportError:
 
 SUPPORT_TIMEOUT = hasattr(usocket.socket, 'settimeout')
 CONTENT_TYPE_JSON = 'application/json'
-
+CONTENT_TYPE_BINARY = 'application/binary'
 
 class Response(object):
     def __init__(self, status_code, status_msg, raw, contLen):
@@ -44,8 +44,8 @@ class Response(object):
                     print(line)
                     keepReading = chunkSize > 0
             
-        else:
-            print("NO DATA ??!!")
+#        else:
+#            print("NO DATA ??!!")
  
  
         return self._content
@@ -79,7 +79,7 @@ class Response(object):
         return (self.status_code, self.status_msg)
         
 # Adapted from upip
-def request(method, url, json=None, textMsg=None, timeout=None, headers=None,  contentType='application/text',  debug = False):
+def request(method, url, json=None, textMsg=None, binary=None, timeout=None, headers=None,  contentType='application/text',  debug = False):
     if debug: print(method, url)
     urlparts = url.split('/', 3)
     proto = urlparts[0]
@@ -103,6 +103,9 @@ def request(method, url, json=None, textMsg=None, timeout=None, headers=None,  c
     elif textMsg is not None:
         content = textMsg
         content_type = contentType
+    elif binary is not None:
+        content = binary
+        content_type = CONTENT_TYPE_BINARY
     else:
         content = None
 
@@ -138,13 +141,15 @@ def request(method, url, json=None, textMsg=None, timeout=None, headers=None,  c
     if content is None:
         sending = '{0}\r\n{1}\r\n{2}\r\n\r\n'.format(http_verb, http_host,  http_headers)
     else:
-        sending = '{0}\r\n{1}\r\n{2}\r\n{3}\r\n{4}\r\n\r\n{5}'.format(http_verb, http_content_type, http_host, http_content_length, http_headers, content)
+        sending = '{0}\r\n{1}\r\n{2}\r\n{3}\r\n{4}\r\n\r\n'.format(http_verb, http_content_type, http_host, http_content_length, http_headers)
 
         
     if debug: print(sending)
 
     # START SENDING
     sock.send(sending)
+    if not content is None:
+        sock.send(content)
 
     
     l = sock.readline()
