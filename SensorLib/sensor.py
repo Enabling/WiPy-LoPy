@@ -64,6 +64,9 @@ class Sensor(object):
 
         return result
 
+    def getCloudChannelCustomHTTP(self):
+        return "{0}_for_{1}".format(self.getStreamId(),self.getDeviceId())
+
     def setDeviceId( self,  deviceId ):
         self.macAddress = deviceId
 
@@ -79,3 +82,5 @@ class Sensor(object):
     def getValue(self):
         return self.sensorValue
 
+    def getData(self):
+        pass

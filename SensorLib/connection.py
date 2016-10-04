@@ -2,9 +2,12 @@ import http_client
 from utime import time, localtime
 import ubinascii
 from sensor import Sensor
+from m2m_sensor import M2M_Sensor
+
 
 class Connection:
     """Base connection class"""
+    OVERCC = False  # cloudchannels or SEaaS API
 
     def pushSensorData(self, enCoSensor,  debug = False):
         raise NotImplementedError("Please Implement this method")
@@ -16,7 +19,9 @@ class WiFi(Connection):
     Putting sensor data onto the Enabling platform.
     USING WiFi and going through the NEW 'cloudchannel-in' API.
     """
-    _serverUrlsToken = { 'UAT':'https://login.enabling.be/oauth2/token'}
+    _serverUrlsToken = { 'UAT':'https://api.enabling.be/token'}
+    _serverUrlsSEaaS = { 'UAT':'https://api.enabling.be/seaas/0.0.1'}
+
     _serverUrlsCC_In = { 'UAT':'https://api.enabling.be/platform/cloudchannels/1.0.0' }
     
     
@@ -43,7 +48,7 @@ class WiFi(Connection):
             # use another approach when the refresh token is available ?
             basic_auth = ubinascii.b2a_base64("{}:{}".format(self.apiKey, self.apiSecret)).decode('ascii')
             auth_header = {'Authorization':'Basic {}'.format(basic_auth), 'Accept':'application/json'}
-            body = 'grant_type=password&username=%s&password=%s' % (self.userName, self.passWord)
+            body = 'grant_type=password&scope=openid&username=%s&password=%s' % (self.userName, self.passWord)
             if debug: print(self.connectToURLforToken)
             resp = http_client.post(self.connectToURLforToken, headers=auth_header, textMsg=body, contentType='application/x-www-form-urlencoded',  debug = debug)
             resp.raise_for_status()
@@ -54,8 +59,16 @@ class WiFi(Connection):
             
             authInfo = resp.json()
             self.tokenBearer = authInfo['access_token']
-            self.tokenRefresh = authInfo['refresh_token']
-            self.validUntil = time() + authInfo['expires_in']
+            #self.tokenRefresh = authInfo['refresh_token']
+            
+            try:
+                self.validUntil = time() + authInfo['expires_in']
+                localtime(self.validUntil)
+            except OverflowError:
+                if debug:
+                    print("Permanent token, setting to 1 week validity")
+                self.validUntil = time() + 7 * 24 * 60 * 60
+
             resp.close()
             if debug: print ("Token retrieved ! valid until {}".format(localtime(self.validUntil)))
         else:
@@ -102,6 +115,12 @@ class WiFi(Connection):
         data = m2mSensor.getCloudChannelInDefinitionJSON()
         data["owner"] = self.userName
         data["latest_message_definition"]["owner"] = self.userName
+        #userdefinedHTTPEndpoint = "{0}_for_{1}".format(m2mSensor.getStreamId(), m2mSensor.getDeviceId())
+        
+        url = m2mSensor.getCloudChannelCustomHTTP()
+        urls = []
+        urls.append(url)
+        data["user_defined_urls"]["HTTP"] = urls
         #data = {"owner":self.userName,"payload_type":"JSON","latest_message_definition":{"name":m2mSensor.getStreamId(),"owner":self.userName},"end_point_types":["HTTP"],"selected_assets":["SEAAS"],"additional_props_for_assets":{"SEAAS":{"deviceId":m2mSensor.getDeviceId()}},"user_defined_urls":{"HTTP":[m2mSensor.getStreamId()]}}
         auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
         if debug: 
@@ -113,12 +132,40 @@ class WiFi(Connection):
         resp.close()
         print ("### CC : created ###")
         
-        
-        
-    def pushSensorData(self, enCoSensor,  debug = False,  forceCreateChannel = False):
+    def pushSensorData(self,  enCoSensor,  debug = False,  forceCreateChannel = False):
         if not enCoSensor or not isinstance(enCoSensor , Sensor):
             raise OSError('\'Sensor\' parameter undefined or wrong type!')
 
+        if self.OVERCC:
+            self.pushSensorDataCloudChannels(enCoSensor, debug,  forceCreateChannel)
+        else:
+            self.pushSensorDataSEaaS(enCoSensor, debug)
+
+    def pushSensorDataSEaaS(self, attSensor,  debug = False):
+        if not attSensor or not isinstance(attSensor , M2M_Sensor):
+            raise OSError('\'Sensor\' parameter undefined or wrong type!')
+        # TODO : format will be different !!!!
+        data = attSensor.getData()
+        #complete struct with needed data for SEaaS
+        data["macAddress"] = attSensor.getDeviceId()
+        data["containerId"] = attSensor.getContainerId()
+        data["timestamp"] = attSensor.timestamp
+        
+        self._getToken(debug)
+        putUrl = "{}/device/{}/stream/{}/add".format(self.connectToURLforSEaaS,  attSensor.getDeviceId(), attSensor.getContainerId())
+        if debug: 
+            print('Sending endpoint : ', putUrl)
+            print('Payload : ',  data)
+                
+        auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
+        resp = http_client.put(putUrl, headers=auth_header, json=data, debug = debug)
+        if debug: print (resp.getStatus())
+        resp.raise_for_status()
+        resp.close()
+
+        
+        
+    def pushSensorDataCloudChannels(self, enCoSensor,  debug = False,  forceCreateChannel = False):
         data = enCoSensor.getAsJson()
         #deviceId = enCoSensor.getDeviceId()
         self._getToken(debug)
@@ -136,7 +183,7 @@ class WiFi(Connection):
                 if debug: print("-- Sensor HAS CC-IN stream definition!")
             pass
         
-        postUrl = "{}/cc-in/u/{}".format(self.connectToURLforCC_In, enCoSensor.getStreamId())
+        postUrl = "{}/cc-in/u/{}".format(self.connectToURLforCC_In, enCoSensor.getCloudChannelCustomHTTP())
         
         if debug: 
             print('Sending endpoint : ', postUrl)
@@ -152,8 +199,8 @@ class WiFi(Connection):
 #        else:
 #            resp = http_client.post(postUrl, headers=auth_header, binary=data, debug = debug)
             
-        resp.raise_for_status()
         if debug: print (resp.getStatus())
+        resp.raise_for_status()
         resp.close()
 
     def getLatestMessageDefinitions(self, debug = False):
@@ -163,8 +210,8 @@ class WiFi(Connection):
             print('Sending endpoint : ', getUrl)
         auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
         resp = http_client.get(getUrl, headers=auth_header, debug = debug)
-        resp.raise_for_status()
         if debug: print (resp.content)
+        resp.raise_for_status()
         resp.close()
         
     def checkIfMessageDefinitionExists(self, whatName, debug = False):

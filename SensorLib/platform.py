@@ -25,6 +25,10 @@ class Platform(object):
     def getDeviceId(self):
         return self.deviceId
         
+    def setDeviceId(self, deviceID):
+        self.deviceId = deviceID
+
+        
     def setLocation(self , latitude = None ,  longitude = None , altitude = None , friendlyName = None):
         if latitude: self.location['latitude'] = latitude
         if longitude: self.location['longitude'] = longitude
@@ -37,9 +41,17 @@ class Platform(object):
     def getLocation(self):
         return self.location
         
-    def pushSensorData(self, enCoSensor,  debug=False):
+    def pushSensorData(self, enCoSensor, debug=False, forceCreateChannel = False):
         if not isinstance(enCoSensor , Sensor):
             raise OSError('Invalid \'Sensor\' parameter!')
             
         enCoSensor.setDeviceId(self.deviceId)
-        self.connection.pushSensorData(enCoSensor, debug)
+        self.connection.pushSensorData(enCoSensor, debug, forceCreateChannel)
+
+
+    def createCCInDefinition(self, enCoSensor, debug=False):
+        if not isinstance(enCoSensor , Sensor):
+            raise OSError('Invalid \'Sensor\' parameter!')
+            
+        self.connection._createCCInStreamDefinition(enCoSensor, debug)
+        

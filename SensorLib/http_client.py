@@ -112,21 +112,23 @@ def request(method, url, json=None, textMsg=None, binary=None, timeout=None, hea
 
     ai = usocket.getaddrinfo(host, port)
     addr = ai[0][4]
+    
+    
+    #sock = connect(proto, addr, timeout)
+    
 
-    if proto == 'https:':
-        sock = usocket.socket(usocket.AF_INET,  usocket.SOCK_STREAM, usocket.IPPROTO_SEC)
-    else:
-        sock = usocket.socket()
-
-    if timeout is not None:
-        assert SUPPORT_TIMEOUT, 'Socket does not support timeout'
-        sock.settimeout(timeout)
-
-    sock.connect(addr)
-
-    if proto == 'https:':
-        assert SUPPORT_SSL, 'HTTPS not supported: could not find ussl'
-        sock = ussl.wrap_socket(sock)
+    try:
+        sock = connect(proto, addr, timeout)
+    except OSError as oerr:
+        print ("OSError : %s" % oerr)
+        raise oerr
+#        try:
+#            sock = connect(proto, addr, timeout)
+#        except OSError as oerr:
+#            print (oerr)
+#            raise oerr
+#    
+    
     
     # DUMP TO CONSOLE DEBUG
     http_verb = '%s /%s HTTP/1.1'  % (method, urlpath)
@@ -174,6 +176,24 @@ def request(method, url, json=None, textMsg=None, binary=None, timeout=None, hea
 
     return Response(int(status), msg, sock, int( contentlength))
 
+def connect(protocol, address,  timeout):
+
+    if protocol == 'https:':
+        sock = usocket.socket(usocket.AF_INET,  usocket.SOCK_STREAM, usocket.IPPROTO_SEC)
+    else:
+        sock = usocket.socket()
+
+    if timeout is not None:
+        assert SUPPORT_TIMEOUT, 'Socket does not support timeout'
+        sock.settimeout(timeout)
+
+    if protocol == 'https:':
+        assert SUPPORT_SSL, 'HTTPS not supported: could not find ussl'
+        sock = ussl.wrap_socket(sock, ssl_version=ussl.PROTOCOL_TLSv1)
+        
+    sock.connect(address)
+    
+    return sock
 
 def get(url, **kwargs):
     return request('GET', url, **kwargs)
