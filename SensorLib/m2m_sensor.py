@@ -12,6 +12,9 @@ class M2M_Sensor(Sensor):
     def getStreamDefinition(self):
         return self.stream_def
 
+    def getData(self):
+        return self.data
+
     def getContainerId(self):
         return self.m2mContainerId
 

@@ -32,12 +32,10 @@ class Sensor(object):
         if not isinstance(d, dict):
             return d
         return dict((k,self._cleandict(v)) for k,v in d.items() if v is not None)
-       
-#    def getData( self ):
-#        return self.data
     
     def getStreamId( self ):
-        return self.containerId
+        #return self.containerId
+        return 'IP_{}'.format(self.containerId)
         
     def getStreamDefinition(self):
         return None
@@ -63,6 +61,103 @@ class Sensor(object):
             result["payload_type"] = "BINARY"
 
         return result
+        
+    def getCloudChannelBaseDefinitionJSON_ATT(self, owner):
+        """
+        Prepares the bare bones JSON structure for our CC definition HTTP->SEaaS
+        WIP
+        """
+        now = utime.localtime()
+        name = '{}_for_{}'.format(self.getStreamId(), self.getDeviceId())
+        ccdef = {
+                  "owner": owner,
+                  "enabled_interval": {
+                    "start": '{0:04d}-{1:02d}-{2:02d}T{3:02d}:{4:02d}:{5:02d}.000+0000'.format(*now)
+                  },
+                  "cc_name": name,
+                  "log_headers": True,
+                  "log_body": True,
+                  "versioned_message_definition_pk": {
+                    "owner": owner,
+                    "name": self.getStreamId(),
+                    "version": 1, 
+                    "payload_type": "ATT_LORA"
+                  },
+                  "cc_in_sources": [
+                    {
+                      "end_point_type": "HTTP",
+                      "user_defined_urls": [
+                        name
+                      ]
+                    }
+                  ],
+                  "cc_out_sinks": [
+                    {
+                      "name": name,
+                      "output_type": "SEAAS",
+                      "active": True,
+                      "identity_transform": True,
+                      "conditions": [],
+                      "subscription": {
+                        "seaas_destination": {
+                          "device_id": self.getDeviceId()
+                        }
+                      }
+                    }
+                  ]
+                }
+        
+        
+        return ccdef
+        
+    def getCloudChannelBaseDefinitionJSON(self, owner, latestmesagedefinition):
+        """
+        Prepares the bare bones JSON structure for our CC definition HTTP->SEaaS
+        """
+        now = utime.localtime()
+        name = '{}_for_{}'.format(self.getStreamId(), self.getDeviceId())
+        ccdef = {
+                  "owner": owner,
+                  "enabled_interval": {
+                    "start": '{0:04d}-{1:02d}-{2:02d}T{3:02d}:{4:02d}:{5:02d}.000+0000'.format(*now)
+                  },
+                  "cc_name": name,
+                  "log_headers": True,
+                  "log_body": True,
+                  "versioned_message_definition_pk": {
+                    "owner": owner,
+                    "name": self.getStreamId(),
+                    "version": latestmesagedefinition
+                  },
+                  "cc_in_sources": [
+                    {
+                      "end_point_type": "HTTP",
+                      "user_defined_urls": [
+                        name
+                      ]
+                    }
+                  ],
+                  "cc_out_sinks": [
+                    {
+                      "name": name,
+                      "output_type": "SEAAS",
+                      "active": True,
+                      "identity_transform": True,
+                      "conditions": [],
+                      "subscription": {
+                        "seaas_destination": {
+                          "device_id": self.getDeviceId()
+                        }
+                      }
+                    }
+                  ]
+                }
+        
+        
+        return ccdef
+
+    def getCloudChannelCustomHTTP(self):
+        return "{0}_for_{1}".format(self.getStreamId(),self.getDeviceId())
 
     def setDeviceId( self,  deviceId ):
         self.macAddress = deviceId
@@ -79,3 +174,5 @@ class Sensor(object):
     def getValue(self):
         return self.sensorValue
 
+    def getData(self):
+        pass
