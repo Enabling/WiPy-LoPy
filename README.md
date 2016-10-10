@@ -10,3 +10,6 @@ It's still a work in progress and the LoRa side of things will evolve as soon as
 
 Cheers,
 The EnCo team.
+
+
+Master branch has been updated to work with the new 'enco.io' platform release.
