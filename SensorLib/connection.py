@@ -21,6 +21,7 @@ class WiFi(Connection):
     USING WiFi and going through the NEW 'cloudchannel-in' API.
     """
     _baseURL = 'https://api.enco.io'
+    
     def __init__(self, userName, apiKey,  apiSecret):
         self.userName = userName    #URL ENCODED !!
         self.apiKey = apiKey

@@ -1,5 +1,5 @@
 from m2m_sensor import M2M_Sensor
-from ubinascii import b2a_base64, a2b_base64, unhexlify,  hexlify
+from ubinascii import b2a_base64, a2b_base64
 
 class BinaryPayloadSensor(M2M_Sensor):
     def __init__( self ):
@@ -13,13 +13,13 @@ class BinaryPayloadSensor(M2M_Sensor):
 #            raise OSError('Invalid \'byteArrayValue\' parameter!')
         
         # BASE64 encode the data !!!!
-        converted = str(b2a_base64(hexlify(byteArrayValue)), 'utf-8').strip('\n')
+        converted = str(b2a_base64(byteArrayValue), 'utf-8').strip('\n')
         self.data['binaryMeterValue'] = converted
         self._updateTimestamp()
         
     def getValue(self):
         # BASE64 decode the data !!!!
-        converted = unhexlify(a2b_base64(self.data['binaryMeterValue']))
+        converted = a2b_base64(self.data['binaryMeterValue'])
         return converted
 
     def getAsJson(self):
