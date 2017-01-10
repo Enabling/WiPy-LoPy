@@ -9,6 +9,7 @@ class Environment(Sensor):
         # Copy/Paste from web portal
         # Call API to get LATEST stream information .....
         self.sensorValue[self.streamID] = {}
+        self.hasCCINdefinition = True
         
         self.stream_def["title"] = self.streamID
         self.stream_def["properties"] = {

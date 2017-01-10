@@ -1,4 +1,6 @@
 import http_client
+from mqtt.simple import MQTTClient as mqttC
+
 from utime import time, localtime
 import ubinascii
 from sensor import Sensor
@@ -7,8 +9,11 @@ from json import dumps
 
 
 class Connection:
+
     """Base connection class"""
+
     OVERCC = True  # cloudchannels or SEaaS API
+    CC_HTTP = True #MQTT or HTTP source for cc
 
     def pushSensorData(self, enCoSensor,  debug = False):
         raise NotImplementedError("Please Implement this method")
@@ -31,7 +36,8 @@ class WiFi(Connection):
         self.connectToURLforToken = "{}/token".format(WiFi._baseURL)
         self.connectToURLforSEaaS = "{}/seaas/0.0.1".format(WiFi._baseURL)
         self.connectToURLforCC_In = "{}/platform/cloudchannels/1.0.0".format(WiFi._baseURL)
-
+        self.mqtt = None
+        
     @property
     def sendOverCloudchannels(self,  useCC):
         return self.OVERC
@@ -73,118 +79,118 @@ class WiFi(Connection):
         else:
             if debug: print ("Token still valid !  Re-using it ! {}".format(self.tokenBearer))
                     
-    def _createCC_MessagedefinitionPK(self, m2mSensor,  debug = False):
-        #POST message definition pk  !!
-        #check if exists ??  Doesn't fail if already there, so ....
-        postUrl = "{}/cc-in/bymessagedefinitionpk".format(self.connectToURLforCC_In)
-        data = {"owner":self.userName,  "name":m2mSensor.getStreamId()}
-        auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
-        if debug: 
-            print('Sending endpoint : ', postUrl)
-            print('Payload : ',  data)
-        resp = http_client.post(postUrl, headers=auth_header, json=data, debug = debug)
-        resp.raise_for_status()
-        if debug: print (resp.getStatus())
-        httpstatus = resp.getStatus()[0] == 200
-        resp.close()
-        if not httpstatus:
-            print ("### PK : creation FAILED ###")
-            return False
-        
-        print ("### PK : created ###")
-        return True
-
-    def _createCC_Messagedefinition(self, m2mSensor, debug = False):
-        #PUT the definition
-        #check if exists? FAILS if there, but perhaps CC not yet defined -> do check !! or handle exception en continue!
-        putUrl = "{}/messagedefinition/latest".format(self.connectToURLforCC_In)
-        # BINARY (-> json_schema : null) / JSON
-        data = m2mSensor.getStreamDefinitionJSON()
-        data["owner"] = self.userName
-        auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
-        if debug: 
-            print('Sending endpoint : ', putUrl)
-            print('Payload : ',  data)
-        resp = http_client.put(putUrl, headers=auth_header, json=data, debug = debug)
-        if debug: print (resp.getStatus())
-        httpstatus = resp.getStatus()[0] == 200
-        if not httpstatus:
-            resp.close()
-            print ("### MD : creation FAILED ###")
-            return -1
-        
-        resp.content
-        messagedefinition = resp.json()
-        versionMD = messagedefinition['version']
-        if debug: print (messagedefinition)
-        
-        print ("### MD : created ###")
-        return versionMD
-
-    def _createCCvOld(self, m2mSensor, debug = False):
-        #PUT the cloudchannel
-        putUrl = "{}/cc/".format(self.connectToURLforCC_In)
-        # BINARY / JSON
-        data = m2mSensor.getCloudChannelInDefinitionJSON()
-        data["owner"] = self.userName
-        data["latest_message_definition"]["owner"] = self.userName
-        url = m2mSensor.getCloudChannelCustomHTTP()
-        urls = []
-        urls.append(url)
-        data["user_defined_urls"]["HTTP"] = urls
-        auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
-        if debug: 
-            print('Sending endpoint : ', putUrl)
-            print('Payload : ',  data)
-        resp = http_client.put(putUrl, headers=auth_header, json=data, debug = debug)
-        if debug: print (resp.getStatus())
-        httpstatus = resp.getStatus()[0] == 200
-        resp.close()
-        if not httpstatus:
-            print ("### CC : creation FAILED ###")
-            return False
-
-        print ("### CC : created ###")
-        return True
-            
-    def _createCC(self, m2mSensor, version, debug = False):
-        #PUT the cloudchannel
-        putUrl = "{}/cc/".format(self.connectToURLforCC_In)
-        # BINARY / JSON
-        data = m2mSensor.getCloudChannelBaseDefinitionJSON(self.userName, version)
-        auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
-        if debug: 
-            print('Sending endpoint : ', putUrl)
-            print('Payload : ',  data)
-        resp = http_client.put(putUrl, headers=auth_header, json=data, debug = debug)
-        if debug: print (resp.getStatus())
-        httpstatus = resp.getStatus()[0] == 200
-        resp.close()
-        if not httpstatus:
-            print ("### CC : creation FAILED ###")
-            return False
-
-        print ("### CC : created ###")
-        return True
+#    def _createCC_MessagedefinitionPK(self, m2mSensor,  debug = False):
+#        #POST message definition pk  !!
+#        #check if exists ??  Doesn't fail if already there, so ....
+#        postUrl = "{}/cc-in/bymessagedefinitionpk".format(self.connectToURLforCC_In)
+#        data = {"owner":self.userName,  "name":m2mSensor.getStreamId()}
+#        auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
+#        if debug: 
+#            print('Sending endpoint : ', postUrl)
+#            print('Payload : ',  data)
+#        resp = http_client.post(postUrl, headers=auth_header, json=data, debug = debug)
+#        resp.raise_for_status()
+#        if debug: print (resp.getStatus())
+#        httpstatus = resp.getStatus()[0] == 200
+#        resp.close()
+#        if not httpstatus:
+#            print ("### PK : creation FAILED ###")
+#            return False
+#        
+#        print ("### PK : created ###")
+#        return True
+#
+#    def _createCC_Messagedefinition(self, m2mSensor, debug = False):
+#        #PUT the definition
+#        #check if exists? FAILS if there, but perhaps CC not yet defined -> do check !! or handle exception en continue!
+#        putUrl = "{}/messagedefinition/latest".format(self.connectToURLforCC_In)
+#        # BINARY (-> json_schema : null) / JSON
+#        data = m2mSensor.getStreamDefinitionJSON()
+#        data["owner"] = self.userName
+#        auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
+#        if debug: 
+#            print('Sending endpoint : ', putUrl)
+#            print('Payload : ',  data)
+#        resp = http_client.put(putUrl, headers=auth_header, json=data, debug = debug)
+#        if debug: print (resp.getStatus())
+#        httpstatus = resp.getStatus()[0] == 200
+#        if not httpstatus:
+#            resp.close()
+#            print ("### MD : creation FAILED ###")
+#            return -1
+#        
+#        resp.content
+#        messagedefinition = resp.json()
+#        versionMD = messagedefinition['version']
+#        if debug: print (messagedefinition)
+#        
+#        print ("### MD : created ###")
+#        return versionMD
+#
+#    def _createCCvOld(self, m2mSensor, debug = False):
+#        #PUT the cloudchannel
+#        putUrl = "{}/cc/".format(self.connectToURLforCC_In)
+#        # BINARY / JSON
+#        data = m2mSensor.getCloudChannelInDefinitionJSON()
+#        data["owner"] = self.userName
+#        data["latest_message_definition"]["owner"] = self.userName
+#        url = m2mSensor.getCloudChannelCustomHTTP()
+#        urls = []
+#        urls.append(url)
+#        data["user_defined_urls"]["HTTP"] = urls
+#        auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
+#        if debug: 
+#            print('Sending endpoint : ', putUrl)
+#            print('Payload : ',  data)
+#        resp = http_client.put(putUrl, headers=auth_header, json=data, debug = debug)
+#        if debug: print (resp.getStatus())
+#        httpstatus = resp.getStatus()[0] == 200
+#        resp.close()
+#        if not httpstatus:
+#            print ("### CC : creation FAILED ###")
+#            return False
+#
+#        print ("### CC : created ###")
+#        return True
+#            
+#    def _createCC(self, m2mSensor, version, debug = False):
+#        #PUT the cloudchannel
+#        putUrl = "{}/cc/".format(self.connectToURLforCC_In)
+#        # BINARY / JSON
+#        data = m2mSensor.getCloudChannelBaseDefinitionJSON(self.userName, version)
+#        auth_header = {'Authorization':'Bearer {}\r\n'.format(self.tokenBearer), 'Accept':'application/json'}
+#        if debug: 
+#            print('Sending endpoint : ', putUrl)
+#            print('Payload : ',  data)
+#        resp = http_client.put(putUrl, headers=auth_header, json=data, debug = debug)
+#        if debug: print (resp.getStatus())
+#        httpstatus = resp.getStatus()[0] == 200
+#        resp.close()
+#        if not httpstatus:
+#            print ("### CC : creation FAILED ###")
+#            return False
+#
+#        print ("### CC : created ###")
+#        return True
             
                     
-    def _createCCInStreamDefinition (self, m2mSensor,  debug = False):
-        """
-        Creates a cloudchannel with HTTP source and SEaaS sink
-        """
-        if m2mSensor.getStreamDefinition() == None:
-            raise OSError ("Can't create cloudchannel-in stream for given sensor.")
-        
-        self._getToken(debug)
-        
-        if not self._createCC_MessagedefinitionPK(m2mSensor, debug):
-            return
-            
-        latestVersion = self._createCC_Messagedefinition(m2mSensor, debug)
-        if latestVersion < 0:
-            return
-
-        self._createCC(m2mSensor,  latestVersion,  debug)
+#    def _createCCInStreamDefinition (self, m2mSensor,  debug = False):
+#        """
+#        Creates a cloudchannel with HTTP source and SEaaS sink
+#        """
+#        if m2mSensor.getStreamDefinition() == None:
+#            raise OSError ("Can't create cloudchannel-in stream for given sensor.")
+#        
+#        self._getToken(debug)
+#        
+#        if not self._createCC_MessagedefinitionPK(m2mSensor, debug):
+#            return
+#            
+#        latestVersion = self._createCC_Messagedefinition(m2mSensor, debug)
+#        if latestVersion < 0:
+#            return
+#
+#        self._createCC(m2mSensor,  latestVersion,  debug)
 
      
     def pushSensorData(self,  enCoSensor, debug = False,  forceCreateChannel = False):
@@ -192,9 +198,27 @@ class WiFi(Connection):
             raise OSError('\'Sensor\' parameter undefined or wrong type!')
 
         if self.OVERCC:
-            self.pushSensorDataCloudChannels(enCoSensor, debug,  forceCreateChannel)
+            if self.CC_HTTP:
+                self.pushSensorDataCloudChannels(enCoSensor, debug,  forceCreateChannel)
+            else:
+                self.pushSensorDataMQTT(enCoSensor, debug)
         else:
             self.pushSensorDataSEaaS(enCoSensor, debug)
+
+    def pushSensorDataMQTT(self, attSensor,  debug = False):
+        if not attSensor or not isinstance(attSensor , Sensor):
+            raise OSError('\'Sensor\' parameter undefined or wrong type!')
+            
+        if self.mqtt == None:
+            print ("Instantiationg MQTT client")
+            self.mqtt = mqttC(attSensor.getDeviceId(),"mqtt.enco.io", user="ogmog3qcdve6lk9g", password="ogmog3qcdve6lk9g")
+            
+        print ("Connecting & publishing .....")
+        self.mqtt.connect()
+        self.mqtt.publish(attSensor.getStreamId(),dumps(attSensor.getAsJson()))
+        self.mqtt.disconnect()
+        print("MQTT disco")
+
 
     def pushSensorDataSEaaS(self, attSensor,  debug = False):
         if not attSensor or not isinstance(attSensor , Sensor):

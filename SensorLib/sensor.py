@@ -110,6 +110,7 @@ class Sensor(object):
         
         return ccdef
         
+    
     def getCloudChannelBaseDefinitionJSON(self, owner, latestmesagedefinition):
         """
         Prepares the bare bones JSON structure for our CC definition HTTP->SEaaS
@@ -137,6 +138,16 @@ class Sensor(object):
                       ]
                     }
                   ],
+#                  "cc_in_sources": [
+#                    {
+#                      "end_point_type": "MQTT",
+#                      "user_defined_urls": [
+#                        name
+#                      ],
+#                          "username": ownerMQTT,
+#                          "password": passwordMQTT
+#                    }
+#                  ],
                   "cc_out_sinks": [
                     {
                       "name": name,
