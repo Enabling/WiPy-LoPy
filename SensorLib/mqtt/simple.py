@@ -1,5 +1,6 @@
 import usocket as socket
 import ustruct as struct
+#from ubinascii import hexlify
 
 class MQTTException(Exception):
     pass
@@ -51,7 +52,10 @@ class MQTTClient:
         self.lw_retain = retain
 
     def connect(self, clean_session=True):
-        self.sock = socket.socket()
+        if self.ssl:
+            self.sock = socket.socket(socket.AF_INET,  socket.SOCK_STREAM, socket.IPPROTO_SEC)
+        else:
+            self.sock = socket.socket()
         self.sock.connect(self.addr)
         if self.ssl:
             import ussl
@@ -80,6 +84,7 @@ class MQTTClient:
             self._send_str(self.user)
             self._send_str(self.pswd)
         resp = self.sock.read(4)
+        #print(hex(len(resp)), hexlify(resp, ":"))
         assert resp[0] == 0x20 and resp[1] == 0x02
         if resp[3] != 0:
             raise MQTTException(resp[3])
