@@ -20,6 +20,9 @@ class Sensor(object):
         self.stream_def["title"] = None
         
         self._updateTimestamp()
+    
+    def clearValues(self):
+        pass
         
     def getType(self):
         return type(self.getValue())

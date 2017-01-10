@@ -347,16 +347,33 @@ class WiFi(Connection):
         
 
 # ------------------------ LoRa ------------------------
-
-class LoRa(Connection):
+class Lora(Connection):
     """Putting sensor data onto the Enabling platform. USING LoRa"""
 
     def __init__(self, deviceAddress, applicationKey, networkKey):
+        from network import LoRa
+        import socket
+        import binascii
+        import struct
         self.deviceAddress = deviceAddress
         self.applicationKey = applicationKey
         self.networkKey = networkKey
-        # TODO : complete when access to REAL LoPi device
+        self.lora = LoRa(mode=LoRa.LORAWAN)
+        dev_addr = struct.unpack(">l", binascii.unhexlify(deviceAddress.replace(' ','')))[0]
+        nwk_swkey = binascii.unhexlify(networkKey.replace(' ',''))
+        app_swkey = binascii.unhexlify(applicationKey.replace(' ',''))
+        self.lora.join(activation=LoRa.ABP, auth=(dev_addr, nwk_swkey, app_swkey))
+        self.s = socket.socket(socket.AF_LORA, socket.SOCK_RAW)
+        self.s.setsockopt(socket.SOL_LORA, socket.SO_DR, 5)
+        self.s.setblocking(False)
 
-    def pushSensorData(self, enCoSensor,  debug = False):
-        if not enCoSensor or not isinstance(enCoSensor , Sensor):
-            raise OSError('\'Sensor\' parameter undefined or wrong type!')
+    def pushSensorData(self, enCoSensor,  debug = False,  forceCreateChannel = False):
+        try:
+            self.s.send(bytes(enCoSensor.getLoRaPacket()))
+            data = self.s.recv(64)
+            if data:
+                print(data)       
+        except AttributeError as err:
+            print("Unable to send sensor over the loar network. Unable to convert to binary stream!")
+            print (err)
+

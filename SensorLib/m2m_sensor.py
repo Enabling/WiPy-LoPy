@@ -27,6 +27,14 @@ class M2M_Sensor(Sensor):
         #print (''.join('{:02X}'.format(x) for x in loraPacket))
         return ''.join('{:02X}'.format(x) for x in loraPacket)
         
+    def getLoRaPacket(self):
+        loraPacket = self._createLoRaPacket()
+        self._addSensorData(loraPacket)
+        self._finalize(loraPacket)
+#        print (''.join('{:02X}'.format(x) for x in loraPacket))
+#        print (bytes(loraPacket))
+        return loraPacket
+       
     def _createLoRaPacket(self):
         packet = bytearray(b'\x7E\x00\x00\x40')
         packet.append(self.getContainerId() & 0xFF)
@@ -38,33 +46,34 @@ class M2M_Sensor(Sensor):
             packet.extend(self.getValue())
             return
         
-        if self.data['booleanMeterValue']:
-            packet.append(0x01)
+        if 'booleanMeterValue' in self.data:
+            if self.data['booleanMeterValue']:
+                packet.append(0x01)
+            else:
+                packet.append(0x00)
+            return
         else:
             packet.append(0x00)
         
-        if not self.data['booleanMeterValue'] is None:
-            return
-        
         #ATT LIBRARY USING 'SHORT' where mentioning 'INT' !!!!!
-        if self.data['integerMeterValue']:
+        if 'integerMeterValue' in self.data:
             packet.append(0x01)
-            packet.extend(pack('>h',self.data['integerMeterValue']))
+            packet.extend(pack('<h',self.data['integerMeterValue']))
             return
         else:
             packet.append(0x00)
 
-        if self.data['doubleMeterValue']:
+        if 'doubleMeterValue' in self.data:
             packet.append(0x01)
-            packet.extend(pack('>f',self.data['doubleMeterValue']))
+            packet.extend(pack('<f',self.data['doubleMeterValue']))
             return
-        elif self.data['accelerometerMeterValue']:
+        elif 'accelerometerMeterValue' in self.data:
             packet.append(0x03)
-            packet.extend(pack('>fff',self.data['accelerometerMeterValue']['x'], self.data['accelerometerMeterValue']['y'], self.data['accelerometerMeterValue']['z']))
+            packet.extend(pack('<fff',self.data['accelerometerMeterValue']['x'], self.data['accelerometerMeterValue']['y'], self.data['accelerometerMeterValue']['z']))
             return
-        elif self.data['gpsMeterValue']:
+        elif 'gpsMeterValue' in self.data:
             packet.append(0x04)
-            packet.extend(pack('>ffff',self.data['gpsMeterValue']['latitude'], self.data['gpsMeterValue']['longitude'], self.data['gpsMeterValue']['altitude'], self.data['gpsMeterValue']['timestamp']))
+            packet.extend(pack('<ffff',self.data['gpsMeterValue']['latitude'], self.data['gpsMeterValue']['longitude'], self.data['gpsMeterValue']['altitude'], self.data['gpsMeterValue']['timestamp']))
             return
         else:
             #Nothing left for now ... so shouldn't really be getting here.
@@ -74,7 +83,7 @@ class M2M_Sensor(Sensor):
     def _finalize(self,  packet):
         checksum = self._calCSum(packet[3:])
         packet.append(checksum & 0xFF)
-        packet[2] = (len(packet) - 4) & 0xFF
+        packet[1] = (len(packet) - 4) & 0xFF
 
     def _calCSum(self, arr):
         sum = 0
@@ -87,9 +96,10 @@ class M2M_Sensor(Sensor):
         while sum > 0xFF:
             newsum = 0
             for x in range(0, 3):
-                newsum += sum & 0xFF
+                newsum += (sum & 0xFF)
 #                print('Debug 2 : NEWsum=', newsum)
-                sum >> 8
+                sum >>= 8
+#                print('Debug 2 : sum=', sum)
             sum = newsum
 #            print('Debug 2 : sum=', sum)
 
